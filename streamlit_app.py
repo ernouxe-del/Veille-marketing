@@ -32,7 +32,7 @@ if st.button("Lancer la veille stratégique"):
         # Le "tools=['google_search']" est ce qui permet à l'IA de sortir sur internet
         response = model.generate_content(
             f"Fais ton rapport de veille complet sur {target_url} à la date d'aujourd'hui.",
-            tools=[{'google_search': {}}] 
+            tools=[{'google_search_retrieval': {}}] 
         )
         st.markdown("### 📊 Rapport de Veille Stratégique")
         st.write(response.text)
