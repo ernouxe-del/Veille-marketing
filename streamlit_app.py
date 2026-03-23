@@ -78,10 +78,10 @@ def executer_analyse(target, focus):
         model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=instructions)
         prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
         
-        # CHANGEMENT ICI : Le nouveau nom de l'outil de recherche
+        # CHANGEMENT ICI : Le format dictionnaire exigé par la nouvelle version
         response = model.generate_content(
             prompt,
-            tools='google_search'
+            tools=[{"google_search": {}}]
         )
         return response.text
         
