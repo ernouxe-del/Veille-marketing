@@ -55,23 +55,45 @@ def executer_analyse(target, focus, instructions_cerveau):
     if "GOOGLE_API_KEY" not in st.secrets:
         st.error("Clé API manquante.")
         st.stop()
+    
+    # Configuration explicite de l'API
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Activation de la recherche Google (Google Search Retrieval)
+    # Le nom correct de l'outil pour éviter l'erreur "Unknown field" (image_5a4b28)
     tools_config = [{"google_search_retrieval": {}}]
     
     try:
+        # On utilise 'gemini-1.5-flash' sans passer par la version beta si possible
+        # Ou on force le modèle qui accepte la recherche web
         model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name='models/gemini-1.5-flash', # Ajout du préfixe 'models/' pour la stabilité
             system_instruction=instructions_cerveau.format(target=target),
             tools=tools_config
         )
-        prompt = f"Réalise l'analyse stratégique de {target}. Focus : {focus}. Date: {datetime.now().strftime('%d/%m/%Y')}"
+        
+        prompt = f"Effectue une veille stratégique complète sur {target}. Focus : {focus}."
+        
+        # On spécifie explicitement la version de l'API si le SDK le permet, 
+        # sinon on laisse le SDK gérer mais avec le bon nom de modèle.
         response = model.generate_content(prompt)
         return response.text
+
     except Exception as e:
-        if "429" in str(e): return "⏳ Quota dépassé. Attends 1 minute."
-        return f"Erreur technique : {e}"
+        error_str = str(e)
+        # Gestion du Quota (image_5aceaa)
+        if "429" in error_str:
+            return "⏳ **Quota atteint** : Le plan gratuit limite les requêtes. Attends 60 secondes."
+        
+        # Si le 404 persiste (image_5abc41), on tente un modèle alternatif sans recherche en secours
+        if "404" in error_str:
+            try:
+                model_alt = genai.GenerativeModel('gemini-1.5-pro')
+                response = model_alt.generate_content(f"Analyse rapide de {target} (Mode secours sans recherche live).")
+                return "⚠️ *Note : Mode secours activé (recherche live indisponible).* \n\n" + response.text
+            except:
+                return f"❌ Erreur critique persistante : {e}"
+        
+        return f"❌ Erreur technique : {e}"
 
 # --- 5. SIDEBAR (GESTION HISTORIQUE & CERVEAU) ---
 with st.sidebar:
