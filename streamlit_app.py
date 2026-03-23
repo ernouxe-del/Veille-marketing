@@ -1,34 +1,32 @@
 import streamlit as st
 import google.generativeai as genai
 
-# Look de l'appli
-st.set_page_config(page_title="Agent Veille Gemini 3", page_icon="🕵️‍♂️")
-st.title("🕵️‍♂️ Agent de Veille : Spécial 5five")
+st.title("🕵️‍♂️ Testeur de Connexion Agent")
 
-# Connexion sécurisée
+# 1. Vérification de la clé
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Clé API manquante dans les Secrets !")
+    st.error("❌ La clé n'est pas détectée dans les Secrets Streamlit.")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# Utilisation de la version Gemini 3 (la plus récente en 2026)
-# Si 'gemini-3-flash' ne passe pas, on testera 'gemini-1.5-pro'
-try:
-    model = genai.GenerativeModel('gemini-3-flash')
-except:
-    model = genai.GenerativeModel('gemini-1.5-pro')
+# 2. Liste des cerveaux à tester (du plus récent au plus stable)
+model_names = ['gemini-3-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+selected_model = None
 
-# Interface
-target = st.text_input("Cible de veille :", "https://www.5five.com/fr/")
-
-if st.button("Lancer l'analyse"):
-    with st.spinner("Analyse en cours avec Gemini 3..."):
+if st.button("Vérifier ma clé et le modèle"):
+    for name in model_names:
         try:
-            # On demande une analyse simple pour valider la connexion
-            response = model.generate_content(f"Fais un court résumé des points forts du site {target}")
-            st.markdown("### 📊 Rapport Flash")
-            st.write(response.text)
-            st.balloons()
+            test_model = genai.GenerativeModel(name)
+            # On tente une micro-réponse
+            response = test_model.generate_content("Dis 'OK'")
+            if response:
+                selected_model = name
+                st.success(f"✅ Succès ! Ta clé fonctionne avec le modèle : {name}")
+                st.balloons()
+                break
         except Exception as e:
-            st.error(f"Erreur de connexion : {e}")
+            st.warning(f"⚠️ Le modèle {name} n'est pas disponible pour ta clé.")
+
+    if not selected_model:
+        st.error("❌ Aucun modèle ne répond. Vérifie ton compte Google AI Studio.")
