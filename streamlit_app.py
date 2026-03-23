@@ -15,19 +15,19 @@ if not os.path.exists(DB_DIR): os.makedirs(DB_DIR)
 db = TinyDB(os.path.join(DB_DIR, 'historique_veille.json'))
 Analysis = Query()
 
-# --- 3. L'OEIL DE L'AGENT (Lecture Web Optimisée) ---
+# --- 3. L'OEIL DE L'AGENT (Lecture Web via Jina) ---
 def lire_site_web(url):
-    """Utilise le moteur Jina Reader pour 'voir' le site comme un humain."""
+    """Transforme le site web en texte structuré pour l'IA."""
     try:
-        # On utilise le proxy Reader qui est gratuit et ultra-puissant
+        # On utilise Jina Reader pour 'voir' le site parfaitement
         reader_url = f"https://r.jina.ai/{url}"
         response = requests.get(reader_url, timeout=15)
         if response.status_code == 200:
-            return response.text[:15000] # On prend les 15k premiers caractères (très riche)
+            return response.text[:15000] # On donne assez de contexte à l'IA
         else:
-            return "Erreur de lecture du site."
+            return "Erreur : Impossible d'accéder au contenu du site actuellement."
     except Exception as e:
-        return f"Erreur technique de connexion : {e}"
+        return f"Erreur de connexion : {e}"
 
 # --- 4. LE CERVEAU DE L'AGENT ---
 def executer_analyse(target, focus):
@@ -37,47 +37,44 @@ def executer_analyse(target, focus):
     
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # 1. L'IA 'regarde' le site
-    st.info(f"🕶️ L'agent examine le site : {target}...")
-    vision_du_site = lire_site_web(target)
+    # 1. L'agent scanne le site
+    st.info(f"🕶️ Scan stratégique de : {target}...")
+    contenu_scan = lire_site_web(target)
 
-    # 2. Récupération historique
+    # 2. Contexte historique
     past_analyses = db.search(Analysis.target == target)
     comp_context = ""
     if past_analyses:
         latest = sorted(past_analyses, key=lambda x: x['timestamp'], reverse=True)[0]
-        comp_context = f"\n[RAPPEL DE TA DERNIÈRE ANALYSE] : {latest['report_text'][:1000]}"
+        comp_context = f"\n[RAPPEL ANALYSE PRÉCÉDENTE] : {latest['report_text'][:1000]}"
 
-    # 3. Le Prompt de Senior Strategist
-    prompt_instruction = f"""Tu es mon Agent Senior en Intelligence Stratégique. 
-    Tu viens de scanner le site {target}. Voici ce que tu as 'vu' (le contenu brut) :
+    prompt = f"""Tu es un Agent Senior en Intelligence Stratégique.
+    Voici le scan complet que tu viens de réaliser sur le site {target} :
     
-    --- DEBUT DU SCAN ---
-    {vision_du_site}
-    --- FIN DU SCAN ---
+    --- DONNÉES DU SCAN ---
+    {contenu_scan}
+    --- FIN DES DONNÉES ---
     
     {comp_context}
 
-    MISSION : Produis un rapport de veille concurrentielle "Sincérité Radicale". 
-    Ne fais pas de remplissage. Si tu vois un changement de prix ou un nouveau produit, note-le.
+    MISSION : Produis un rapport d'analyse concurrentielle détaillé.
+    CONSIGNE : Sois extrêmement précis sur les prix, les nouvelles gammes et les messages marketing visibles.
     
-    STRUCTURE DU RAPPORT :
-    1. 🔴 CHANGEMENTS MAJEURS : Ce qui a bougé depuis la dernière fois (ou les 3 points clés).
-    2. 💰 ANALYSE PRIX & OFFRE : Gammes détectées, promos en cours.
-    3. 🎨 DIRECTION ARTISTIQUE : Analyse visuelle du merchandising digital.
-    4. 🔮 PRÉDICTION : Quelle est leur prochaine étape stratégique selon toi ?
-
-    Ton ton doit être professionnel, tranchant et analytique."""
+    FORMAT :
+    1. 🔴 CHANGEMENTS MAJEURS (Highlights)
+    2. 💰 OFFRE & PRIX (Analyse détaillée)
+    3. 🎨 MERCHANDISING & IMAGE (Analyse du style)
+    4. 🔮 PRÉDICTION STRATÉGIQUE (Next steps)"""
 
     try:
-        # On utilise le modèle le plus récent et stable
-        model = genai.GenerativeModel('gemini-2.0-flash-exp') 
-        response = model.generate_content(prompt_instruction)
+        # MISE À JOUR : On utilise le nom de modèle qui correspond à tes quotas disponibles
+        model = genai.GenerativeModel('gemini-2.5-flash') 
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"L'IA a rencontré un problème : {e}"
+        return f"Problème d'analyse IA : {e}"
 
-# --- 5. INTERFACE SIDEBAR ---
+# --- 5. INTERFACE ---
 with st.sidebar:
     st.title("🕵️‍♂️ Mes Veilles")
     if st.button("➕ Nouvelle Analyse", type="primary"):
@@ -95,16 +92,15 @@ with st.sidebar:
             st.session_state['selected_target'] = None
             st.rerun()
 
-# --- 6. INTERFACE PRINCIPALE ---
 selected_target = st.session_state.get('selected_target')
 
 if selected_target is None:
-    st.header("Lancer une veille stratégique")
+    st.header("Lancer un Agent de Veille")
     target_input = st.text_input("URL de la marque :", "https://www.5five.com/fr/")
     focus_input = st.selectbox("Focus :", ["Global", "Prix", "Design"])
     
-    if st.button("Lancer l'Agent"):
-        with st.spinner("L'agent analyse le site en temps réel..."):
+    if st.button("Lancer l'Analyse"):
+        with st.spinner("L'agent explore le site..."):
             report = executer_analyse(target_input, focus_input)
             t_name = target_input.split("//")[-1].split("/")[0]
             db.insert({
@@ -116,8 +112,8 @@ if selected_target is None:
 else:
     reports = sorted(db.search(Analysis.target_name == selected_target), key=lambda x: x['timestamp'], reverse=True)
     st.header(f"Rapport : {selected_target}")
-    if st.button("🔄 Actualiser la veille"):
-        with st.spinner("Scan du site en cours..."):
+    if st.button("🔄 Actualiser"):
+        with st.spinner("Scan en cours..."):
             new_report = executer_analyse(reports[0]['target'], reports[0]['focus'])
             db.insert({
                 'id': str(uuid.uuid4()), 'target': reports[0]['target'], 'target_name': selected_target,
