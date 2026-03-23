@@ -17,37 +17,48 @@ Analysis = Query()
 # --- 3. LOGIQUE D'ANALYSE AVEC GOOGLE SEARCH ---
 def executer_analyse(target, focus, system_prompt):
     if "GOOGLE_API_KEY" not in st.secrets:
-        st.error("Clé API manquante dans les Secrets.")
-        return "Erreur de configuration"
+        st.error("Clé API manquante.")
+        return "Erreur"
         
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Correction cruciale pour éviter l'erreur 'Unknown field' (image_48fdc5)
-    tools_config = [{'google_search_retrieval': {}}]
+    # Nouvelle syntaxe officielle pour l'outil de recherche
+    tools_config = [{"google_search_retrieval": {}}]
     
     try:
-        # On utilise gemini-1.5-flash : c'est le plus robuste pour la recherche web
+        # On utilise 'gemini-1.5-flash-latest' qui est souvent plus stable pour les outils
         model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name='gemini-1.5-flash-latest',
             system_instruction=system_prompt,
             tools=tools_config
         )
         
-        # On demande explicitement d'utiliser Google Search pour la précision
-        prompt = f"Analyse stratégique en temps réel de la cible : {target}. Focus particulier sur : {focus}. Utilise la recherche Google pour valider les prix et les nouveautés."
+        # On demande explicitement d'utiliser la recherche pour avoir les sources [1]
+        prompt = f"Effectue une veille stratégique sur {target} (Focus: {focus}). Utilise Google Search pour citer tes sources et vérifier les prix actuels."
         
+        # On force la génération
         response = model.generate_content(prompt)
-        return response.text
+        
+        if response.text:
+            return response.text
+        else:
+            return "L'IA n'a retourné aucun texte. Réessaie."
 
     except Exception as e:
-        # Gestion des erreurs de quota 429 (image_490609)
+        # Si la recherche (tools) cause le 404, on tente sans la recherche en mode secours
+        if "404" in str(e) or "not found" in str(e).lower():
+            try:
+                # Mode secours sans outil de recherche
+                model_fallback = genai.GenerativeModel('gemini-1.5-flash-latest', system_instruction=system_prompt)
+                response = model_fallback.generate_content(f"Analyse de {target} (Mode secours sans recherche web).")
+                return f"⚠️ Note : Recherche Web indisponible (Mode secours actif).\n\n" + response.text
+            except:
+                return f"Erreur critique : {e}"
+        
         if "429" in str(e):
-            return "⚠️ Quota dépassé. Attends 60 secondes : l'IA est très sollicitée sur le palier gratuit."
-        # Gestion des erreurs de modèle 404 (image_490187)
-        if "404" in str(e):
-            return "⚠️ Modèle temporairement indisponible. Réessaie dans quelques instants."
+            return "⚠️ Quota atteint. Patiente 1 minute."
+            
         return f"Erreur technique : {e}"
-
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("🕵️‍♂️ Configuration")
