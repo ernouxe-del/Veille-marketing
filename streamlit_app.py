@@ -2,37 +2,37 @@ import streamlit as st
 import google.generativeai as genai
 from datetime import datetime
 
-# Configuration de l'interface
+# 1. Configuration de l'interface (Ta base validée)
 st.set_page_config(page_title="Agent Veille 5five", page_icon="🕵️‍♂️", layout="wide")
 
 st.title("🕵️‍♂️ Agent d'Intelligence Stratégique : 5five & Co")
 st.markdown("---")
 
-# Connexion sécurisée
+# 2. Connexion
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("Clé API manquante dans les Secrets Streamlit.")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# --- CONFIGURATION DE L'AGENT ---
-# Utilisation de gemini-2.0-flash, le premier modèle de ta liste validée
-instructions = """Tu es un Expert en Intelligence Stratégique. 
-Analyse la cible de façon NEUTRE et FACTUELLE. 
+# 3. Configuration de l'IA (On garde gemini-3-flash-preview mais on change le comportement)
+instructions_strategiques = """Tu es un Expert en Intelligence Stratégique. 
+Ta mission est d'analyser la cible de façon NEUTRE et FACTUELLE. 
+Ne fais aucune comparaison avec 5five ou d'autres marques, reste concentré sur la cible.
 
-Structure ton rapport exactement comme suit :
-1. 📌 HIGHLIGHTS : Les 3 faits marquants récents.
-2. 🏆 TOP 5 DES PRODUITS PHARES : (Prix, Design, Distribution, Stratégie, Succès).
-3. 🎨 ANALYSE DE L'IDENTITÉ VISUELLE : Couleurs, Photos, Slogan.
-4. 🔮 PRÉDICTION STRATÉGIQUE : Prévisions à 3 mois.
-5. 🔗 SOURCES : URLs consultées."""
+Structure ton rapport exactement ainsi :
+1. 📌 HIGHLIGHTS : Les 3 faits marquants récents (blog, actus, nouveautés).
+2. 🏆 TOP 5 DES PRODUITS PHARES : Pour chaque produit : Prix, Design, Distribution, Stratégie et Succès.
+3. 🎨 ANALYSE DE L'IDENTITÉ VISUELLE : Couleurs, Style de photos, Slogan.
+4. 🔮 PRÉDICTION STRATÉGIQUE : Tes prévisions pour les 3 prochains mois.
+5. 🔗 SOURCES : Liste les URLs précises que tu as utilisées pour cette analyse."""
 
 model = genai.GenerativeModel(
-    model_name='gemini-1.5-pro', # Passage sur la version Pro pour contourner le quota du Flash
-    system_instruction=instructions
+    model_name='gemini-3-flash-preview',
+    system_instruction=instructions_strategiques
 )
 
-# --- INTERFACE ---
+# 4. Interface utilisateur (On garde tes paramètres préférés)
 col1, col2 = st.columns([1, 2])
 
 with col1:
@@ -43,20 +43,21 @@ with col1:
 
 with col2:
     if btn:
-        with st.spinner("Analyse stratégique en cours..."):
+        with st.spinner("L'IA analyse les données en temps réel..."):
             try:
                 today = datetime.now().strftime("%d %B %Y")
-                prompt = f"Analyse {target} au {today}. Focus : {focus}."
+                # On demande explicitement d'aller chercher les sources
+                prompt = f"Réalise l'analyse stratégique neutre de {target} au {today}. Focus : {focus}. N'oublie pas de citer tes sources à la fin."
                 
                 response = model.generate_content(prompt)
                 
-                if response.text:
-                    st.markdown(response.text)
-                    st.success("Analyse terminée.")
-                else:
-                    st.error("L'IA n'a pas renvoyé de texte.")
+                st.success("Analyse terminée !")
+                st.markdown(response.text)
+                st.balloons()
             except Exception as e:
-                st.error(f"Erreur technique : {e}")
-                st.info("Note : Si l'erreur 404 persiste, remplace 'gemini-2.0-flash' par 'gemini-3-flash-preview' dans le code.")
+                st.error(f"Erreur lors de l'analyse : {e}")
     else:
-        st.info("Modifiez les paramètres à gauche et lancez l'analyse.")
+        st.info("Entrez une cible à gauche et cliquez sur le bouton pour générer le rapport.")
+
+st.sidebar.markdown("---")
+st.sidebar.write("⚡ Propulsé par Gemini 3 Flash")
