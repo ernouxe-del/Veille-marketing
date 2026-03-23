@@ -16,20 +16,19 @@ if "GOOGLE_API_KEY" not in st.secrets:
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # --- CONFIGURATION DE L'AGENT ---
-# Nous utilisons 'gemini-1.5-flash-latest' qui est validé pour ta clé
+# Utilisation de gemini-2.0-flash, le premier modèle de ta liste validée
 instructions = """Tu es un Expert en Intelligence Stratégique. 
-Analyse la marque ou l'URL fournie de façon NEUTRE et FACTUELLE. 
-Ne fais aucune comparaison avec d'autres marques.
+Analyse la cible de façon NEUTRE et FACTUELLE. 
 
-Structure ton rapport impérativement ainsi :
-1. 📌 HIGHLIGHTS : Les 3 faits marquants récents (blog, promos, actu).
+Structure ton rapport exactement comme suit :
+1. 📌 HIGHLIGHTS : Les 3 faits marquants récents.
 2. 🏆 TOP 5 DES PRODUITS PHARES : (Prix, Design, Distribution, Stratégie, Succès).
 3. 🎨 ANALYSE DE L'IDENTITÉ VISUELLE : Couleurs, Photos, Slogan.
-4. 🔮 PRÉDICTION STRATÉGIQUE : Prévisions pour les 3 prochains mois.
-5. 🔗 SOURCES : Liste des URLs consultées."""
+4. 🔮 PRÉDICTION STRATÉGIQUE : Prévisions à 3 mois.
+5. 🔗 SOURCES : URLs consultées."""
 
 model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash-latest', 
+    model_name='gemini-2.0-flash', 
     system_instruction=instructions
 )
 
@@ -44,17 +43,20 @@ with col1:
 
 with col2:
     if btn:
-        with st.spinner("Analyse en cours..."):
+        with st.spinner("Analyse stratégique en cours..."):
             try:
                 today = datetime.now().strftime("%d %B %Y")
-                prompt = f"Réalise l'analyse stratégique de {target} au {today}. Focus : {focus}."
+                prompt = f"Analyse {target} au {today}. Focus : {focus}."
                 
                 response = model.generate_content(prompt)
                 
                 if response.text:
                     st.markdown(response.text)
-                    st.success("Analyse terminée avec succès.")
+                    st.success("Analyse terminée.")
+                else:
+                    st.error("L'IA n'a pas renvoyé de texte.")
             except Exception as e:
-                st.error(f"Erreur : {e}")
+                st.error(f"Erreur technique : {e}")
+                st.info("Note : Si l'erreur 404 persiste, remplace 'gemini-2.0-flash' par 'gemini-3-flash-preview' dans le code.")
     else:
         st.info("Modifiez les paramètres à gauche et lancez l'analyse.")
