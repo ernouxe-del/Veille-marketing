@@ -9,7 +9,8 @@ import uuid
 st.set_page_config(page_title="Agent Veille Stratégique", page_icon="🕵️‍♂️", layout="wide")
 
 st.markdown("""
-<style>[data-testid="stSidebar"] { background-color: #1a1c22; }
+<style>
+    [data-testid="stSidebar"] { background-color: #1a1c22; }
     .stButton>button { width: 100%; border-radius: 20px; }
     .date-badge { background-color: #343541; padding: 5px 10px; border-radius: 10px; font-size: 0.8rem; color: #ccc; }
 </style>
@@ -17,12 +18,11 @@ st.markdown("""
 
 # --- 2. BASE DE DONNÉES ---
 DB_DIR = "db"
-if not os.path.exists(DB_DIR): 
-    os.makedirs(DB_DIR)
+if not os.path.exists(DB_DIR): os.makedirs(DB_DIR)
 db = TinyDB(os.path.join(DB_DIR, 'historique_veille.json'))
 Analysis = Query()
 
-# --- 3. LE CERVEAU DE L'AGENT ---
+# --- 3. LE CERVEAU DE L'AGENT (La partie que tu voulais coller) ---
 def executer_analyse(target, focus):
     if "GOOGLE_API_KEY" not in st.secrets:
         st.error("Clé API manquante dans les Secrets Streamlit.")
@@ -75,20 +75,10 @@ def executer_analyse(target, focus):
     - Toujours citer les liens sources exacts sous chaque section."""
 
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=instructions)
+        model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
         prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
-        
-        # CHANGEMENT ICI : Utilisation de l'objet natif Protobuf pour contourner le bug
-        outil_recherche = genai.protos.Tool(
-            google_search=genai.protos.GoogleSearch()
-        )
-        
-        response = model.generate_content(
-            prompt,
-            tools=[outil_recherche]
-        )
+        response = model.generate_content(prompt)
         return response.text
-        
     except Exception as e:
         return f"Erreur technique : {e}"
 
@@ -121,7 +111,7 @@ if selected_target is None:
     st.header("Nouvelle Analyse Stratégique")
     col1, col2 = st.columns([1, 1])
     target_input = col1.text_input("URL ou Marque :", "https://www.5five.com/fr/")
-    focus_input = col2.selectbox("Focus :",["Global", "Prix", "Design", "Innovation"])
+    focus_input = col2.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
     
     if st.button("Lancer la veille"):
         with st.spinner("Analyse approfondie en cours..."):
