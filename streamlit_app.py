@@ -5,8 +5,16 @@ import os
 from tinydb import TinyDB, Query
 import uuid
 
-# --- 1. CONFIGURATION ---
+# --- 1. CONFIGURATION DE L'INTERFACE ---
 st.set_page_config(page_title="Agent Veille Stratégique", page_icon="🕵️‍♂️", layout="wide")
+
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] { background-color: #1a1c22; }
+    .stButton>button { width: 100%; border-radius: 20px; }
+    .date-badge { background-color: #343541; padding: 5px 10px; border-radius: 10px; font-size: 0.8rem; color: #ccc; }
+</style>
+""", unsafe_allow_html=True)
 
 # --- 2. BASE DE DONNÉES ---
 DB_DIR = "db"
@@ -14,160 +22,128 @@ if not os.path.exists(DB_DIR): os.makedirs(DB_DIR)
 db = TinyDB(os.path.join(DB_DIR, 'historique_veille.json'))
 Analysis = Query()
 
-# --- 3. BIBLIOTHÈQUE DE CERVEAUX ---
-CERVEAUX = {
-    "🧠 Agent Standard (AI Studio)": """Role: You are a Senior Strategic Intelligence Agent specialized in competitive monitoring. Your goal is to detect every subtle change in the strategy of {target}.
-
-Source of Truth: Your primary target is {target}. You must explore the site globally to detect changes and recent news indexed by Google Search.
-
-Analysis Pillars:
-1. Pricing Strategy: Monitor any price fluctuations, new discount patterns, or psychological pricing changes.
-2. Product Catalog: Detect new arrivals ("New In" section) and discontinued items.
-3. Visual Identity (DA): Analyze changes in photography style, color palettes, font usage, and website layout. 
-4. Trend Scouting: Identify emerging themes, keywords, or marketing slogans used in their latest campaigns.
-
-Product Mapping Duties:
-Structure report by category (Kitchen, Storage, Bathroom, Furniture, etc.):
-- Core Offering: Identify the top-selling/most visible products.
-- Price Architecture: Define the price brackets (e.g., Entry-level: 2€-10€, Mid-range: 15€-45€, Premium: 50€+).
-- Materials & Specs: Note recurring materials (Bambou, Inox, Plastic recycled) to detect shifts in quality/margin.
-
-Mandatory Product Report Format:
-1. Product Name & Range
-2. Current Price (min/max/average)
-3. Design Analysis (materials, colors, aesthetic style)
-4. Distribution (where it's available)
-5. Marketing Hook (how the brand presents it visually and its main promise)
-
-Output Rules:
-- ALWAYS respond in French.
-- Use a professional, analytical tone.
-- Start each report with a "Highlights" section (the 3 most important changes).
-- End with a "Strategic Prediction" (what this means for their next 3 months).
-
-Constraint: If data is missing, mention it clearly and suggest a specific search query. No Click & Collect or CSR mention if not found.""",
-    "💰 Expert Pricing": "Focus exclusif sur les prix de {target}.",
-    "🎨 Expert Design": "Focus exclusif sur la DA de {target}."
-}
-
-# --- 4. FONCTION D'ANALYSE ---
-def executer_analyse(target, focus, instructions_cerveau):
+# --- 3. LE CERVEAU DE L'AGENT (La partie que tu voulais coller) ---
+def executer_analyse(target, focus):
     if "GOOGLE_API_KEY" not in st.secrets:
-        st.error("Clé API manquante.")
+        st.error("Clé API manquante dans les Secrets Streamlit.")
         st.stop()
-    
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    try:
-        # 1. On retire l'argument 'tools' qui provoque le 404/429
-        # 2. On reste sur gemini-1.5-flash pour la rapidité
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
-            system_instruction=instructions_cerveau.format(target=target)
-        )
-        
-        # 3. On adapte le prompt pour demander une analyse de l'URL sans outil de recherche externe
-        prompt_stable = f"""
-        Analyse la stratégie de la marque via son interface web : {target}.
-        Focus : {focus}.
-        
-        Instructions : 
-        - Utilise tes connaissances entrainées sur cette marque.
-        - Structure ton rapport selon le format "AI Studio" (Highlights, Mapping Produits, DA, Prédictions).
-        - Si tu ne peux pas accéder au live, simule une navigation basée sur la structure habituelle du site {target}.
-        """
-        
-        response = model.generate_content(prompt_stable)
-        return response.text
+    # Récupération de l'historique pour comparaison
+    past_analyses = db.search(Analysis.target == target)
+    comp_context = ""
+    if past_analyses:
+        latest_past = sorted(past_analyses, key=lambda x: x['timestamp'], reverse=True)[0]
+        comp_context = f"\n\n[HISTORIQUE PRÉCÉDENT POUR COMPARAISON] : {latest_past['report_text'][:1500]}"
 
-    except Exception as e:
-        # Gestion propre des erreurs sans faire crasher l'interface
-        if "429" in str(e):
-            return "⏳ **Quota atteint** : Le mode gratuit est limité. Réessaie dans 1 minute."
-        return f"❌ Erreur technique : {e}"
-
-# --- 5. SIDEBAR (GESTION HISTORIQUE & CERVEAU) ---
-with st.sidebar:
-    st.title("🕵️‍♂️ Configuration")
+    # Ton nouveau Prompt "AI Studio" optimisé
+    instructions = f"""Tu es un Agent Senior en Intelligence Stratégique. Ton but est de détecter chaque changement subtil de stratégie.
     
-    # Choix du cerveau
-    choix_nom = st.selectbox("Sélectionne le cerveau :", list(CERVEAUX.keys()))
-    instructions_custom = st.text_area("Instructions actives :", value=CERVEAUX[choix_nom], height=300)
+    SOURCES DE VÉRITÉ : 
+    Ta cible primaire est {target}. Tu dois explorer le site pour détecter les changements et les actualités indexées par Google Search.
+    
+    PILIERS D'ANALYSE (SINCÉRITÉ RADICALE) :
+    1. Stratégie de Prix : Fluctuations, nouveaux schémas de remise, prix psychologiques.
+    2. Catalogue Produit : Nouveautés ("New In") et articles abandonnés.
+    3. Identité Visuelle (DA) : Style photo, palettes de couleurs, mise en page.
+    4. Merchandising Digital : Analyse par UNIVERS (Cuisine, Rangement, Salle de bain, Mobilier, etc.).
 
-    st.markdown("---")
+    FORMAT DE RAPPORT OBLIGATOIRE :
+    
+    1. 📌 HIGHLIGHTS : Les 3 changements les plus importants (avec liens sources).
+    
+    2. 💻 DIGITAL STOREFRONT & UNIVERS :
+       - Analyse de la Home Page (Hero Banner actuelle).
+       - Organisation par Univers Produit.
+       - Architecture de prix (Entrée de gamme, Milieu de gamme, Premium).
+       - PREUVE (Lien URL) : [Lien exact]
+
+    3. 🏆 MAPPING PRODUITS (Par catégorie) :
+       Pour chaque produit phare détecté :
+       - Nom du Produit & Gamme
+       - Prix Actuel (min/max/moyenne)
+       - Analyse Design (matériaux, couleurs, style)
+       - Crochet Marketing (promesse visuelle)
+       - PREUVE (Lien Fiche Produit) : [Lien direct obligatoire]
+
+    4. 🔄 ANALYSE COMPARATIVE : {comp_context if comp_context else "Analyse des évolutions récentes."}
+    
+    5. 🔮 PRÉDICTION STRATÉGIQUE : Ce que cela signifie pour les 3 prochains mois.
+
+    CONSTRAINTES STRICTES :
+    - NE RIEN INVENTER : Si une info manque (ex: pas de Click & Collect ou de RSE visible), ne mentionne PAS ces sections.
+    - Toujours citer les liens sources exacts sous chaque section."""
+
+    try:
+        model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
+        prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Erreur technique : {e}"
+
+# --- 4. SIDEBAR (Gestion de l'historique) ---
+with st.sidebar:
+    st.title("🕵️‍♂️ Mes Veilles")
     if st.button("➕ Nouvelle Analyse", type="primary"):
         st.session_state['selected_target'] = None
         st.rerun()
     
+    st.markdown("---")
     st.markdown("### 🏢 Marques suivies")
     all_data = db.all()
     unique_targets = sorted(list(set([ana['target_name'] for ana in all_data])))
     
     for t_name in unique_targets:
-        cols = st.columns([0.7, 0.3])
-        if cols[0].button(f"🏢 {t_name}", key=f"btn_{t_name}"):
+        cols = st.columns([0.8, 0.2])
+        if cols[0].button(f"🏢 {t_name}", key=f"target_{t_name}"):
             st.session_state['selected_target'] = t_name
             st.rerun()
-        # BOUTON SUPPRIMER RETABLIT
-        if cols[1].button("🗑️", key=f"del_{t_name}"):
+        if cols[1].button("🗑️", key=f"del_all_{t_name}"):
             db.remove(Analysis.target_name == t_name)
             st.session_state['selected_target'] = None
             st.rerun()
 
-# --- 6. CORPS PRINCIPAL ---
+# --- 5. CORPS PRINCIPAL ---
 selected_target = st.session_state.get('selected_target')
 
 if selected_target is None:
-    st.header("Lancer une veille stratégique")
-    col1, col2 = st.columns(2)
-    target_input = col1.text_input("URL cible :", "https://www.5five.com/fr/")
-    focus_input = col2.selectbox("Focus :", ["Global", "Nouveautés", "Prix"])
+    st.header("Nouvelle Analyse Stratégique")
+    col1, col2 = st.columns([1, 1])
+    target_input = col1.text_input("URL ou Marque :", "https://www.5five.com/fr/")
+    focus_input = col2.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
     
-    if st.button("🚀 Lancer l'analyse"):
-        with st.spinner("Recherche en direct et analyse..."):
-            report = executer_analyse(target_input, focus_input, instructions_custom)
+    if st.button("Lancer la veille"):
+        with st.spinner("Analyse approfondie en cours..."):
+            report_text = executer_analyse(target_input, focus_input)
             t_name = target_input.split("//")[-1].split("/")[0] if "http" in target_input else target_input
-            # Sauvegarde SANS écraser (Nouvel ID unique)
             db.insert({
-                'id': str(uuid.uuid4()),
-                'target': target_input,
-                'target_name': t_name,
-                'timestamp': datetime.now().timestamp(),
-                'report_text': report,
-                'focus': focus_input
+                'id': str(uuid.uuid4()), 'target': target_input, 'target_name': t_name,
+                'timestamp': datetime.now().timestamp(), 'report_text': report_text, 'focus': focus_input
             })
             st.session_state['selected_target'] = t_name
             st.rerun()
 else:
-    # Récupération de toutes les analyses pour cette marque
     reports = sorted(db.search(Analysis.target_name == selected_target), key=lambda x: x['timestamp'], reverse=True)
+    col_t, col_up = st.columns([0.7, 0.3])
+    col_t.header(f"Veille : {selected_target}")
     
-    col_title, col_refresh = st.columns([0.7, 0.3])
-    col_title.header(f"Rapports : {selected_target}")
-    
-    # BOUTON RAFRAICHIR RETABLIT (Crée une nouvelle entrée en base)
-    if col_refresh.button("🔄 Actualiser (Nouvelle Archive)"):
-        with st.spinner("Mise à jour du rapport..."):
-            new_report = executer_analyse(reports[0]['target'], reports[0]['focus'], instructions_custom)
+    if col_up.button("🔄 Actualiser (Nouvelle version)"):
+        with st.spinner("Mise à jour..."):
+            new_text = executer_analyse(reports[0]['target'], reports[0]['focus'])
             db.insert({
-                'id': str(uuid.uuid4()),
-                'target': reports[0]['target'],
-                'target_name': selected_target,
-                'timestamp': datetime.now().timestamp(),
-                'report_text': new_report,
-                'focus': reports[0]['focus']
+                'id': str(uuid.uuid4()), 'target': reports[0]['target'], 'target_name': selected_target,
+                'timestamp': datetime.now().timestamp(), 'report_text': new_text, 'focus': reports[0]['focus']
             })
             st.rerun()
 
     st.markdown("---")
-    st.subheader("📍 Dernière version")
+    st.subheader("📍 Dernière Analyse")
     st.markdown(reports[0]['report_text'])
     
-    # SYSTÈME D'ARCHIVES POUR NE PAS PERDRE LES JOURS PRÉCÉDENTS
     if len(reports) > 1:
         st.markdown("---")
-        st.subheader("📜 Historique des analyses")
-        for old in reports[1:]:
-            date_str = datetime.fromtimestamp(old['timestamp']).strftime('%d/%m/%Y à %H:%M')
-            with st.expander(f"Analyse du {date_str}"):
-                st.markdown(old['report_text'])
+        st.subheader("📜 Archives")
+        for old_ana in reports[1:]:
+            with st.expander(f"Version du {datetime.fromtimestamp(old_ana['timestamp']).strftime('%d/%m/%Y')}"):
+                st.markdown(old_ana['report_text'])
