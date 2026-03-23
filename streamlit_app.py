@@ -18,11 +18,12 @@ st.markdown("""
 
 # --- 2. BASE DE DONNÉES ---
 DB_DIR = "db"
-if not os.path.exists(DB_DIR): os.makedirs(DB_DIR)
+if not os.path.exists(DB_DIR): 
+    os.makedirs(DB_DIR)
 db = TinyDB(os.path.join(DB_DIR, 'historique_veille.json'))
 Analysis = Query()
 
-# --- 3. LE CERVEAU DE L'AGENT (La partie que tu voulais coller) ---
+# --- 3. LE CERVEAU DE L'AGENT ---
 def executer_analyse(target, focus):
     if "GOOGLE_API_KEY" not in st.secrets:
         st.error("Clé API manquante dans les Secrets Streamlit.")
@@ -56,7 +57,7 @@ def executer_analyse(target, focus):
        - Analyse de la Home Page (Hero Banner actuelle).
        - Organisation par Univers Produit.
        - Architecture de prix (Entrée de gamme, Milieu de gamme, Premium).
-       - PREUVE (Lien URL) : [Lien exact]
+       - PREUVE (Lien URL) :[Lien exact]
 
     3. 🏆 MAPPING PRODUITS (Par catégorie) :
        Pour chaque produit phare détecté :
@@ -64,7 +65,7 @@ def executer_analyse(target, focus):
        - Prix Actuel (min/max/moyenne)
        - Analyse Design (matériaux, couleurs, style)
        - Crochet Marketing (promesse visuelle)
-       - PREUVE (Lien Fiche Produit) : [Lien direct obligatoire]
+       - PREUVE (Lien Fiche Produit) :[Lien direct obligatoire]
 
     4. 🔄 ANALYSE COMPARATIVE : {comp_context if comp_context else "Analyse des évolutions récentes."}
     
@@ -74,15 +75,11 @@ def executer_analyse(target, focus):
     - NE RIEN INVENTER : Si une info manque (ex: pas de Click & Collect ou de RSE visible), ne mentionne PAS ces sections.
     - Toujours citer les liens sources exacts sous chaque section."""
 
- # ... (début de ton prompt)
-    CONSTRAINTES STRICTES :
-    - NE RIEN INVENTER : Si une info manque (ex: pas de Click & Collect ou de RSE visible), ne mentionne PAS ces sections.
-    - Toujours citer les liens sources exacts sous chaque section."""
-
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
         prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
         
+        # Appel à l'API avec l'outil de recherche Google activé
         response = model.generate_content(
             prompt,
             tools='google_search_retrieval'
