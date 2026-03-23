@@ -1,32 +1,28 @@
 import streamlit as st
 import google.generativeai as genai
 
-st.title("🕵️‍♂️ Testeur de Connexion Agent")
+st.title("🕵️‍♂️ Diagnostic de ta Clé API")
 
-# 1. Vérification de la clé
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("❌ La clé n'est pas détectée dans les Secrets Streamlit.")
-    st.stop()
+    st.error("❌ La clé n'est pas trouvée dans les Secrets Streamlit.")
+else:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    genai.configure(api_key=api_key)
+    
+    st.info(f"Clé détectée (début) : {api_key[:8]}...")
 
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-
-# 2. Liste des cerveaux à tester (du plus récent au plus stable)
-model_names = ['gemini-3-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
-selected_model = None
-
-if st.button("Vérifier ma clé et le modèle"):
-    for name in model_names:
+    if st.button("Lister mes modèles autorisés"):
         try:
-            test_model = genai.GenerativeModel(name)
-            # On tente une micro-réponse
-            response = test_model.generate_content("Dis 'OK'")
-            if response:
-                selected_model = name
-                st.success(f"✅ Succès ! Ta clé fonctionne avec le modèle : {name}")
+            # Cette commande demande à Google la liste réelle des modèles pour TA clé
+            models = genai.list_models()
+            available_models = [m.name for m in models if 'generateContent' in m.supported_generation_methods]
+            
+            if available_models:
+                st.success("✅ Ta clé fonctionne ! Voici tes modèles :")
+                for m in available_models:
+                    st.write(f"- {m}")
                 st.balloons()
-                break
+            else:
+                st.warning("⚠️ La clé est valide mais Google ne te donne accès à aucun modèle 'generateContent'.")
         except Exception as e:
-            st.warning(f"⚠️ Le modèle {name} n'est pas disponible pour ta clé.")
-
-    if not selected_model:
-        st.error("❌ Aucun modèle ne répond. Vérifie ton compte Google AI Studio.")
+            st.error(f"❌ Erreur de connexion avec cette clé : {e}")
