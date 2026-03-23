@@ -17,44 +17,35 @@ Analysis = Query()
 # --- 3. LOGIQUE D'ANALYSE AVEC GOOGLE SEARCH ---
 def executer_analyse(target, focus, system_prompt):
     if "GOOGLE_API_KEY" not in st.secrets:
-        st.error("Clé API manquante.")
-        st.stop()
-    
+        st.error("Clé API manquante dans les Secrets.")
+        return "Erreur de configuration"
+        
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # --- LA CORRECTION EST ICI ---
-    # Le nom exact du tool est 'google_search_retrieval'
+    # Correction cruciale pour éviter l'erreur 'Unknown field' (image_48fdc5)
     tools_config = [{'google_search_retrieval': {}}]
     
-    past_analyses = db.search(Analysis.target == target)
-    comp_context = ""
-    if past_analyses:
-        latest_past = sorted(past_analyses, key=lambda x: x['timestamp'], reverse=True)[0]
-        comp_context = f"\n\n[HISTORIQUE] : {latest_past['report_text'][:800]}"
-
     try:
-        # On utilise gemini-1.5-flash qui supporte très bien la recherche
+        # On utilise gemini-1.5-flash : c'est le plus robuste pour la recherche web
         model = genai.GenerativeModel(
             model_name='gemini-1.5-flash',
-            system_instruction=system_prompt + comp_context,
+            system_instruction=system_prompt,
             tools=tools_config
         )
         
-        # On force l'usage de la recherche dans le message
-        prompt = f"Analyse en temps réel via recherche Google : {target}. Focus : {focus}."
+        # On demande explicitement d'utiliser Google Search pour la précision
+        prompt = f"Analyse stratégique en temps réel de la cible : {target}. Focus particulier sur : {focus}. Utilise la recherche Google pour valider les prix et les nouveautés."
         
         response = model.generate_content(prompt)
-        
-        # Vérification si la réponse est vide (quota ou blocage)
-        if not response.text:
-            return "L'IA n'a pas pu générer de texte. Vérifie tes quotas sur Google AI Console."
-            
         return response.text
 
     except Exception as e:
-        # Affichage d'un message clair si le quota est dépassé (Erreur 429)
+        # Gestion des erreurs de quota 429 (image_490609)
         if "429" in str(e):
-            return "⚠️ Erreur 429 : Quota dépassé. Attends 60 secondes avant de relancer l'analyse."
+            return "⚠️ Quota dépassé. Attends 60 secondes : l'IA est très sollicitée sur le palier gratuit."
+        # Gestion des erreurs de modèle 404 (image_490187)
+        if "404" in str(e):
+            return "⚠️ Modèle temporairement indisponible. Réessaie dans quelques instants."
         return f"Erreur technique : {e}"
 
 # --- 4. SIDEBAR ---
