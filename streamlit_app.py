@@ -22,41 +22,31 @@ def executer_analyse(target, focus, system_prompt):
         
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Nouvelle syntaxe officielle pour l'outil de recherche
+    # 1. On utilise le nom d'outil qui fonctionne sur la version 2.0
     tools_config = [{"google_search_retrieval": {}}]
     
     try:
-        # On utilise 'gemini-1.5-flash-latest' qui est souvent plus stable pour les outils
+        # 2. Changement de modèle pour gemini-2.0-flash (celui de ton test Studio)
+        # On retire le '-latest' qui peut causer des 404 selon les régions
         model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash-latest',
+            model_name='gemini-2.0-flash',
             system_instruction=system_prompt,
             tools=tools_config
         )
         
-        # On demande explicitement d'utiliser la recherche pour avoir les sources [1]
-        prompt = f"Effectue une veille stratégique sur {target} (Focus: {focus}). Utilise Google Search pour citer tes sources et vérifier les prix actuels."
+        prompt = f"Analyse stratégique de {target}. Focus : {focus}. Utilise Google Search pour citer tes preuves."
         
-        # On force la génération
         response = model.generate_content(prompt)
-        
-        if response.text:
-            return response.text
-        else:
-            return "L'IA n'a retourné aucun texte. Réessaie."
+        return response.text
 
     except Exception as e:
-        # Si la recherche (tools) cause le 404, on tente sans la recherche en mode secours
-        if "404" in str(e) or "not found" in str(e).lower():
-            try:
-                # Mode secours sans outil de recherche
-                model_fallback = genai.GenerativeModel('gemini-1.5-flash-latest', system_instruction=system_prompt)
-                response = model_fallback.generate_content(f"Analyse de {target} (Mode secours sans recherche web).")
-                return f"⚠️ Note : Recherche Web indisponible (Mode secours actif).\n\n" + response.text
-            except:
-                return f"Erreur critique : {e}"
-        
-        if "429" in str(e):
-            return "⚠️ Quota atteint. Patiente 1 minute."
+        # 3. Système de secours intelligent (Fallback)
+        # Si le 404 persiste avec l'outil de recherche, on lance sans l'outil
+        if "404" in str(e) or "not supported" in str(e).lower():
+            st.warning("Recherche Web désactivée par l'API (Mode local activé).")
+            model_simple = genai.GenerativeModel('gemini-2.0-flash', system_instruction=system_prompt)
+            response = model_simple.generate_content(f"Analyse de {target} (Focus: {focus})")
+            return response.text
             
         return f"Erreur technique : {e}"
 # --- 4. SIDEBAR ---
