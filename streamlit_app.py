@@ -15,29 +15,21 @@ if "GOOGLE_API_KEY" not in st.secrets:
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# --- CONFIGURATION DE L'AGENT (STYLE AI STUDIO) ---
-instructions = """Tu es un Expert en Intelligence Stratégique de haut niveau. 
-Ta mission est d'analyser une marque ou une URL de façon NEUTRE et FACTUELLE. 
-Ne fais aucune comparaison avec d'autres marques sauf si demandé.
+# --- CONFIGURATION DE L'AGENT ---
+instructions = """Tu es un Expert en Intelligence Stratégique. 
+Analyse la marque ou l'URL fournie de façon NEUTRE et FACTUELLE. 
+Structure ton rapport avec : Highlights, Top 5 Produits, Identité Visuelle, Prédictions et Sources."""
 
-Tu DOIS impérativement structurer ton rapport comme suit :
-1. TITRE : RAPPORT DE VEILLE STRATÉGIQUE QUOTIDIEN : [NOM DE LA CIBLE]
-2. META : Date d'analyse, Cible et Introduction brève.
-3. 📌 HIGHLIGHTS : Les 3 faits marquants du jour (analyser les changements récents, blog, promos).
-4. 🏆 TOP 5 DES PRODUITS PHARES : Pour chaque produit, précise : Prix, Design/Matériaux, Distribution, Stratégie Marketing et Indices de succès.
-5. 🎨 ANALYSE DE L'IDENTITÉ VISUELLE : Couleurs, Tendances, Type de photos & Slogan.
-6. 🔮 PRÉDICTION STRATÉGIQUE : Tes prévisions pour les 3 prochains mois.
-7. 🔗 SOURCES : Liste exhaustive des URLs exactes consultées.
-
-Utilise des citations numérotées [1], [2] dans le texte qui renvoient à ta section Sources."""
+# On définit l'outil de recherche de façon plus simple pour éviter le bug
+tools_config = [{"google_search_retrieval": {}}]
 
 model = genai.GenerativeModel(
-    model_name='gemini-3-flash-preview',
+    model_name='gemini-1.5-flash', # On repasse sur 1.5 pour garantir la stabilité de la recherche
     system_instruction=instructions,
-    tools=[{'google_search': {}}] # Activation de la recherche en temps réel
+    tools=tools_config
 )
 
-# --- INTERFACE (Paramètres conservés) ---
+# --- INTERFACE ---
 col1, col2 = st.columns([1, 2])
 
 with col1:
@@ -48,17 +40,19 @@ with col1:
 
 with col2:
     if btn:
-        with st.spinner("Recherche et analyse des données en cours..."):
+        with st.spinner("Recherche et analyse en cours..."):
             try:
                 today = datetime.now().strftime("%d %B %Y")
-                prompt = f"Réalise l'analyse stratégique de {target} au {today}. Focus : {focus}."
+                prompt = f"Réalise l'analyse stratégique de {target} au {today}. Focus : {focus}. Utilise tes outils de recherche pour trouver les dernières infos."
                 
-                # Génération du contenu
+                # Génération
                 response = model.generate_content(prompt)
                 
-                st.markdown(response.text)
-                st.success("Analyse terminée avec succès.")
+                if response.text:
+                    st.markdown(response.text)
+                    st.success("Analyse terminée.")
+                else:
+                    st.warning("L'IA n'a pas pu générer de texte. Réessaie.")
             except Exception as e:
-                st.error(f"Une erreur est survenue : {e}")
-    else:
-        st.info("Modifiez les paramètres à gauche et lancez l'analyse.")
+                st.error(f"Erreur technique : {e}")
+                st.info("Conseil : Si l'erreur persiste, essaie de retirer la ligne 'tools=tools_config' dans le code.")
