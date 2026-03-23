@@ -2,4 +2,3 @@ streamlit
 tinydb
 google-generativeai
 requests
-beautifulsoup4
