@@ -9,8 +9,7 @@ import uuid
 st.set_page_config(page_title="Agent Veille Stratégique", page_icon="🕵️‍♂️", layout="wide")
 
 st.markdown("""
-<style>
-    [data-testid="stSidebar"] { background-color: #1a1c22; }
+<style>[data-testid="stSidebar"] { background-color: #1a1c22; }
     .stButton>button { width: 100%; border-radius: 20px; }
     .date-badge { background-color: #343541; padding: 5px 10px; border-radius: 10px; font-size: 0.8rem; color: #ccc; }
 </style>
@@ -57,7 +56,7 @@ def executer_analyse(target, focus):
        - Analyse de la Home Page (Hero Banner actuelle).
        - Organisation par Univers Produit.
        - Architecture de prix (Entrée de gamme, Milieu de gamme, Premium).
-       - PREUVE (Lien URL) :[Lien exact]
+       - PREUVE (Lien URL) : [Lien exact]
 
     3. 🏆 MAPPING PRODUITS (Par catégorie) :
        Pour chaque produit phare détecté :
@@ -65,7 +64,7 @@ def executer_analyse(target, focus):
        - Prix Actuel (min/max/moyenne)
        - Analyse Design (matériaux, couleurs, style)
        - Crochet Marketing (promesse visuelle)
-       - PREUVE (Lien Fiche Produit) :[Lien direct obligatoire]
+       - PREUVE (Lien Fiche Produit) : [Lien direct obligatoire]
 
     4. 🔄 ANALYSE COMPARATIVE : {comp_context if comp_context else "Analyse des évolutions récentes."}
     
@@ -76,7 +75,8 @@ def executer_analyse(target, focus):
     - Toujours citer les liens sources exacts sous chaque section."""
 
     try:
-        model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
+        # CHANGEMENT ICI : Utilisation de gemini-2.5-flash pour contourner la limite de quota
+        model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=instructions)
         prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
         
         # Appel à l'API avec l'outil de recherche Google activé
@@ -118,7 +118,7 @@ if selected_target is None:
     st.header("Nouvelle Analyse Stratégique")
     col1, col2 = st.columns([1, 1])
     target_input = col1.text_input("URL ou Marque :", "https://www.5five.com/fr/")
-    focus_input = col2.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
+    focus_input = col2.selectbox("Focus :",["Global", "Prix", "Design", "Innovation"])
     
     if st.button("Lancer la veille"):
         with st.spinner("Analyse approfondie en cours..."):
