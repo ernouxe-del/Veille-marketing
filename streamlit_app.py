@@ -28,7 +28,7 @@ Structure ton rapport exactement comme suit :
 5. 🔗 SOURCES : URLs consultées."""
 
 model = genai.GenerativeModel(
-    model_name='gemini-2.0-flash', 
+    model_name='gemini-1.5-pro', # Passage sur la version Pro pour contourner le quota du Flash
     system_instruction=instructions
 )
 
