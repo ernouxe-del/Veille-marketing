@@ -32,19 +32,18 @@ def extraire_texte_url(url):
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Supprimer les scripts et les styles inutiles
+        # On nettoie le code pour ne garder que le texte
         for script_or_style in soup(["script", "style", "nav", "footer", "header"]):
             script_or_style.decompose()
             
         texte = soup.get_text(separator=' ')
-        # Nettoyage des espaces blancs en trop
         lignes = (line.strip() for line in texte.splitlines())
         chunks = (phrase.strip() for line in lignes for phrase in line.split("  "))
         texte_propre = '\n'.join(chunk for chunk in chunks if chunk)
         
-        return texte_propre[:10000] # On limite à 10 000 caractères pour ne pas saturer l'IA
+        return texte_propre[:10000] # Limite pour l'IA
     except Exception as e:
-        return f"Impossible de lire le site : {e}"
+        return f"Note : Impossible de lire le contenu en direct ({e})."
 
 # --- 4. LE CERVEAU DE L'AGENT ---
 def executer_analyse(target, focus):
@@ -53,38 +52,36 @@ def executer_analyse(target, focus):
         st.stop()
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # ÉTAPE 1 : On va chercher le contenu du site nous-mêmes
-    st.info(f"🔍 Lecture directe de {target}...")
-    contenu_site = extraire_texte_url(target) if "http" in target else "Cible non-URL, analyse basée sur les connaissances internes."
+    # Lecture du contenu du site
+    contenu_site = extraire_texte_url(target) if "http" in target else "Analyse basée sur tes connaissances."
 
-    # ÉTAPE 2 : Préparation du contexte historique
+    # Historique pour comparaison
     past_analyses = db.search(Analysis.target == target)
     comp_context = ""
     if past_analyses:
         latest_past = sorted(past_analyses, key=lambda x: x['timestamp'], reverse=True)[0]
-        comp_context = f"\n\n[HISTORIQUE PRÉCÉDENT] : {latest_past['report_text'][:1000]}"
+        comp_context = f"\n\n[HISTORIQUE PRÉCÉDENT POUR COMPARAISON] : {latest_past['report_text'][:1000]}"
 
     instructions = f"""Tu es un Agent Senior en Intelligence Stratégique.
-    Voici le contenu textuel brut que je viens d'extraire de la cible ({target}) :
+    Voici des données extraites récemment de la cible {target} :
     ---
     {contenu_site}
     ---
-    
-    TA MISSION : Analyser ce contenu pour détecter la stratégie actuelle.
     {comp_context}
 
-    FORMAT DE RAPPORT :
-    1. 📌 HIGHLIGHTS : Les 3 points clés.
-    2. 💻 STOREFRONT : Analyse de l'offre visible.
-    3. 🏆 MAPPING : Produits phares et prix détectés.
-    4. 🔮 PRÉDICTION : Évolution à 3 mois.
-
-    STRICT : Si le contenu fourni est vide ou contient une erreur, base-toi sur tes connaissances de la marque mais signale-le."""
+    TA MISSION : Rédiger un rapport de veille stratégique précis.
+    FORMAT :
+    1. 📌 HIGHLIGHTS : 3 points majeurs.
+    2. 💻 STOREFRONT : Analyse de l'offre et du merchandising.
+    3. 🏆 MAPPING : Produits phares et prix.
+    4. 🔮 PRÉDICTION : Évolution stratégique à venir.
+    
+    IMPORTANT : Sois factuel. Cite des éléments du texte si possible."""
 
     try:
-        # On utilise gemini-1.5-flash qui est très stable et rapide
-        model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=instructions)
-        prompt = f"Analyse stratégique de {target}. Focus particulier sur : {focus}."
+        # MISE À JOUR : Utilisation du modèle Gemini 2.5 Flash qui est actif sur ton compte
+        model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=instructions)
+        prompt = f"Effectue l'analyse de {target}. Focus : {focus}."
         
         response = model.generate_content(prompt)
         return response.text
@@ -116,11 +113,11 @@ selected_target = st.session_state.get('selected_target')
 if selected_target is None:
     st.header("Nouvelle Analyse Stratégique")
     col1, col2 = st.columns([1, 1])
-    target_input = col1.text_input("URL (ex: https://www.5five.com/fr/) :", "https://www.5five.com/fr/")
+    target_input = col1.text_input("URL ou Marque :", "https://www.5five.com/fr/")
     focus_input = col2.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
     
     if st.button("Lancer la veille"):
-        with st.spinner("Extraction et Analyse en cours..."):
+        with st.spinner("Analyse en cours..."):
             report_text = executer_analyse(target_input, focus_input)
             t_name = target_input.split("//")[-1].split("/")[0] if "http" in target_input else target_input
             db.insert({
