@@ -8,17 +8,11 @@ import uuid
 # --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Agent Veille Stratégique", page_icon="🕵️‍♂️", layout="wide")
 
-# CSS pour le look AI Studio et l'alignement des boutons de suppression
 st.markdown("""
 <style>
     [data-testid="stSidebar"] { background-color: #1a1c22; }
     .stButton>button { width: 100%; border-radius: 20px; }
-    /* Style pour le bouton supprimer en ligne */
-    .sidebar-row {
-        display: flex;
-        align-items: center;
-        margin-bottom: 5px;
-    }
+    .date-badge { background-color: #343541; padding: 5px 10px; border-radius: 10px; font-size: 0.8rem; color: #ccc; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -28,112 +22,111 @@ if not os.path.exists(DB_DIR): os.makedirs(DB_DIR)
 db = TinyDB(os.path.join(DB_DIR, 'historique_veille.json'))
 Analysis = Query()
 
-# --- 3. SESSION STATE ---
-if 'selected_analysis_id' not in st.session_state: st.session_state['selected_analysis_id'] = None
+# --- 3. LOGIQUE D'ANALYSE ---
+def executer_analyse(target, focus):
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    
+    # On récupère TOUT l'historique de cette cible pour que l'IA compare
+    past_analyses = db.search(Analysis.target == target)
+    comp_context = ""
+    if past_analyses:
+        latest_past = sorted(past_analyses, key=lambda x: x['timestamp'], reverse=True)[0]
+        comp_context = f"\n\nCONTEXTE HISTORIQUE PRÉCÉDENT : {latest_past['report_text'][:1000]}"
 
-# --- 4. SIDEBAR (Historique avec bouton suppression) ---
+    instructions = f"""Tu es un Expert en Intelligence Stratégique (Marché FR). 
+    Analyse la cible de façon NEUTRE. Focus : {focus}.
+    STRUCTURE : 1. Highlights FR, 2. Digital Storefront (Univers & Merchandising), 3. Top 5 Produits, 4. Analyse Comparative (évolution par rapport au passé), 5. Identité & Prévisions, 6. Sources."""
+
+    model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
+    response = model.generate_content(f"Analyse {target} au {datetime.now()}. {comp_context}")
+    return response.text
+
+# --- 4. SIDEBAR (Groupée par Marque) ---
 with st.sidebar:
-    st.title("🕵️‍♂️ Agent Veille")
+    st.title("🕵️‍♂️ Mes Veilles")
     if st.button("➕ Nouvelle Analyse", type="primary"):
-        st.session_state['selected_analysis_id'] = None
+        st.session_state['selected_target'] = None
         st.rerun()
     
     st.markdown("---")
-    st.markdown("### 📜 Historique")
+    st.markdown("### 🏢 Marques suivies")
     
-    all_analysis = sorted(db.all(), key=lambda x: x['timestamp'], reverse=True)
+    # On récupère les marques uniques
+    all_data = db.all()
+    unique_targets = sorted(list(set([ana['target_name'] for ana in all_data])))
     
-    for ana in all_analysis:
-        date_str = datetime.fromtimestamp(ana['timestamp']).strftime("%d/%m")
-        # On crée deux colonnes dans la sidebar : une pour le rapport, une pour la croix
+    for t_name in unique_targets:
         cols = st.columns([0.8, 0.2])
-        
-        # Bouton pour charger l'analyse
-        if cols[0].button(f"📊 {ana['target_name']} ({date_str})", key=f"btn_{ana['id']}"):
-            st.session_state['selected_analysis_id'] = ana['id']
+        if cols[0].button(f"🏢 {t_name}", key=f"target_{t_name}"):
+            st.session_state['selected_target'] = t_name
             st.rerun()
-        
-        # Bouton "Poubelle" pour supprimer l'analyse
-        if cols[1].button("🗑️", key=f"del_{ana['id']}"):
-            db.remove(Analysis.id == ana['id'])
-            if st.session_state['selected_analysis_id'] == ana['id']:
-                st.session_state['selected_analysis_id'] = None
+        # Suppression de toute la marque et son historique
+        if cols[1].button("🗑️", key=f"del_all_{t_name}"):
+            db.remove(Analysis.target_name == t_name)
+            st.session_state['selected_target'] = None
             st.rerun()
 
 # --- 5. CORPS PRINCIPAL ---
-current_id = st.session_state['selected_analysis_id']
+selected_target = st.session_state.get('selected_target')
 
-if current_id is None:
+if selected_target is None:
     st.header("Nouvelle Analyse Stratégique")
     col1, col2 = st.columns([1, 1])
-    with col1:
-        target = st.text_input("URL ou Marque :", "https://www.5five.com/fr/")
-        focus = st.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
+    target_input = col1.text_input("URL ou Marque :", "https://www.5five.com/fr/")
+    focus_input = col2.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
     
     if st.button("Lancer la veille"):
-        with st.spinner("Analyse approfondie du site et du marché..."):
-            genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-            
-            # Recherche historique pour comparaison
-            old_reports = db.search(Analysis.target == target)
-            comp_context = ""
-            if old_reports:
-                latest = sorted(old_reports, key=lambda x: x['timestamp'], reverse=True)[0]
-                comp_context = f"\n\nDERNIÈRE ANALYSE DU SITE : {latest['report_text'][:800]}"
-
-            # INSTRUCTIONS (Avec ton nouveau segment Digital Storefront)
-            instructions = f"""Tu es un Expert en Intelligence Stratégique spécialisé sur le MARCHÉ FRANÇAIS. 
-            Analyse la cible de façon NEUTRE et FACTUELLE.
-            
-            STRUCTURE REQUISE :
-            1. 📌 HIGHLIGHTS FR : 3 faits marquants du jour en France.
-            
-            2. 💻 DIGITAL STOREFRONT & MERCHANDISING : 
-               - Organisation du site (Home page, bannières).
-               - Mise en avant par UNIVERS PRODUIT (ex: Cuisine, Rangement, Déco).
-               - CHANGEMENTS NOTABLES par rapport à la dernière visite si contexte fourni.
-               - Efficacité commerciale de l'URL donnée.
-            
-            3. 🏆 TOP 5 PRODUITS (FRANCE) : Prix (€), Design, Stratégie.
-            
-            4. 🔄 ANALYSE COMPARATIVE : Différences clés détectées depuis la dernière analyse.{comp_context}
-            
-            5. 🎨 IDENTITÉ VISUELLE & 🔮 PRÉVISIONS (3 MOIS).
-            
-            6. 🔗 SOURCES."""
-
+        with st.spinner("Analyse initiale en cours..."):
             try:
-                model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
-                response = model.generate_content(f"Analyse {target} au {datetime.now()}. Focus : {focus}")
-                
-                # Sauvegarde dans TinyDB
-                t_id = str(uuid.uuid4())
-                t_name = target.split("//")[-1].split("/")[0] if "http" in target else target
+                report_text = executer_analyse(target_input, focus_input)
+                t_name = target_input.split("//")[-1].split("/")[0] if "http" in target_input else target_input
                 db.insert({
-                    'id': t_id,
-                    'target': target,
+                    'id': str(uuid.uuid4()),
+                    'target': target_input,
                     'target_name': t_name,
                     'timestamp': datetime.now().timestamp(),
-                    'report_text': response.text,
-                    'focus': focus
+                    'report_text': report_text,
+                    'focus': focus_input
                 })
-                
-                st.session_state['selected_analysis_id'] = t_id
-                st.rerun() # On recharge pour afficher le nouveau rapport
-                
+                st.session_state['selected_target'] = t_name
+                st.rerun()
             except Exception as e:
                 st.error(f"Erreur : {e}")
 else:
-    # AFFICHAGE D'UN RAPPORT EXISTANT
-    ana = db.get(Analysis.id == current_id)
-    if ana:
-        st.header(f"Rapport : {ana['target_name']}")
-        st.write(f"*Analysé le {datetime.fromtimestamp(ana['timestamp']).strftime('%d/%m/%Y à %H:%M')}*")
-        st.markdown("---")
-        st.markdown(ana['report_text'])
-        if st.button("⬅️ Retour"):
-            st.session_state['selected_analysis_id'] = None
+    # AFFICHAGE DE LA TIMELINE POUR UNE MARQUE
+    reports = sorted(db.search(Analysis.target_name == selected_target), key=lambda x: x['timestamp'], reverse=True)
+    
+    col_t, col_up = st.columns([0.7, 0.3])
+    col_t.header(f"Veille : {selected_target}")
+    
+    if col_up.button("🔄 Actualiser (Nouvelle version)"):
+        with st.spinner("Analyse des changements en cours..."):
+            new_text = executer_analyse(reports[0]['target'], reports[0]['focus'])
+            db.insert({
+                'id': str(uuid.uuid4()),
+                'target': reports[0]['target'],
+                'target_name': selected_target,
+                'timestamp': datetime.now().timestamp(),
+                'report_text': new_text,
+                'focus': reports[0]['focus']
+            })
             st.rerun()
-    else:
-        st.error("Rapport introuvable.")
-        st.session_state['selected_analysis_id'] = None
+
+    st.markdown("---")
+
+    # Affichage du rapport le plus récent
+    st.subheader("📍 Dernière Analyse")
+    st.info(f"Établie le {datetime.fromtimestamp(reports[0]['timestamp']).strftime('%d/%m/%Y à %H:%M')}")
+    st.markdown(reports[0]['report_text'])
+    
+    # Affichage des archives en dessous
+    if len(reports) > 1:
+        st.markdown("---")
+        st.subheader("📜 Archives de cette marque")
+        for i, old_ana in enumerate(reports[1:]):
+            with st.expander(f"Version du {datetime.fromtimestamp(old_ana['timestamp']).strftime('%d/%m/%Y')}"):
+                st.markdown(old_ana['report_text'])
+
+    if st.button("⬅️ Retour"):
+        st.session_state['selected_target'] = None
+        st.rerun()
