@@ -58,37 +58,32 @@ def executer_analyse(target, focus, instructions_cerveau):
     
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Correction de l'outil pour éviter "Unknown field"
-    tools_config = [{"google_search_retrieval": {}}]
-    
     try:
-        # On utilise le nom complet du modèle pour éviter le 404
+        # 1. On retire l'argument 'tools' qui provoque le 404/429
+        # 2. On reste sur gemini-1.5-flash pour la rapidité
         model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash', 
-            tools=tools_config
+            model_name='gemini-1.5-flash',
+            system_instruction=instructions_cerveau.format(target=target)
         )
         
-        # On passe les instructions système ici pour plus de stabilité
-        prompt_complet = f"{instructions_cerveau.format(target=target)}\n\nFocus actuel : {focus}"
+        # 3. On adapte le prompt pour demander une analyse de l'URL sans outil de recherche externe
+        prompt_stable = f"""
+        Analyse la stratégie de la marque via son interface web : {target}.
+        Focus : {focus}.
         
-        response = model.generate_content(prompt_complet)
+        Instructions : 
+        - Utilise tes connaissances entrainées sur cette marque.
+        - Structure ton rapport selon le format "AI Studio" (Highlights, Mapping Produits, DA, Prédictions).
+        - Si tu ne peux pas accéder au live, simule une navigation basée sur la structure habituelle du site {target}.
+        """
+        
+        response = model.generate_content(prompt_stable)
         return response.text
 
     except Exception as e:
-        error_msg = str(e)
-        # Gestion propre du Quota 429
-        if "429" in error_msg:
-            return "⏳ **Quota dépassé** : Google limite les requêtes gratuites. Patiente 60 secondes."
-        
-        # Si le 404 persiste, on tente sans l'outil de recherche en dernier recours
-        if "404" in error_msg:
-            try:
-                model_basic = genai.GenerativeModel('gemini-1.5-flash')
-                response = model_basic.generate_content(f"Analyse simplifiée de {target} (Mode secours sans recherche web).")
-                return "⚠️ *Note : Recherche Web indisponible.* \n\n" + response.text
-            except:
-                return f"❌ Erreur critique : {e}"
-        
+        # Gestion propre des erreurs sans faire crasher l'interface
+        if "429" in str(e):
+            return "⏳ **Quota atteint** : Le mode gratuit est limité. Réessaie dans 1 minute."
         return f"❌ Erreur technique : {e}"
 
 # --- 5. SIDEBAR (GESTION HISTORIQUE & CERVEAU) ---
