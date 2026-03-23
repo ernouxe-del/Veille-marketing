@@ -56,42 +56,38 @@ def executer_analyse(target, focus, instructions_cerveau):
         st.error("Clé API manquante.")
         st.stop()
     
-    # Configuration explicite de l'API
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Le nom correct de l'outil pour éviter l'erreur "Unknown field" (image_5a4b28)
+    # Correction de l'outil pour éviter "Unknown field"
     tools_config = [{"google_search_retrieval": {}}]
     
     try:
-        # On utilise 'gemini-1.5-flash' sans passer par la version beta si possible
-        # Ou on force le modèle qui accepte la recherche web
+        # On utilise le nom complet du modèle pour éviter le 404
         model = genai.GenerativeModel(
-            model_name='models/gemini-1.5-flash', # Ajout du préfixe 'models/' pour la stabilité
-            system_instruction=instructions_cerveau.format(target=target),
+            model_name='gemini-1.5-flash', 
             tools=tools_config
         )
         
-        prompt = f"Effectue une veille stratégique complète sur {target}. Focus : {focus}."
+        # On passe les instructions système ici pour plus de stabilité
+        prompt_complet = f"{instructions_cerveau.format(target=target)}\n\nFocus actuel : {focus}"
         
-        # On spécifie explicitement la version de l'API si le SDK le permet, 
-        # sinon on laisse le SDK gérer mais avec le bon nom de modèle.
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt_complet)
         return response.text
 
     except Exception as e:
-        error_str = str(e)
-        # Gestion du Quota (image_5aceaa)
-        if "429" in error_str:
-            return "⏳ **Quota atteint** : Le plan gratuit limite les requêtes. Attends 60 secondes."
+        error_msg = str(e)
+        # Gestion propre du Quota 429
+        if "429" in error_msg:
+            return "⏳ **Quota dépassé** : Google limite les requêtes gratuites. Patiente 60 secondes."
         
-        # Si le 404 persiste (image_5abc41), on tente un modèle alternatif sans recherche en secours
-        if "404" in error_str:
+        # Si le 404 persiste, on tente sans l'outil de recherche en dernier recours
+        if "404" in error_msg:
             try:
-                model_alt = genai.GenerativeModel('gemini-1.5-pro')
-                response = model_alt.generate_content(f"Analyse rapide de {target} (Mode secours sans recherche live).")
-                return "⚠️ *Note : Mode secours activé (recherche live indisponible).* \n\n" + response.text
+                model_basic = genai.GenerativeModel('gemini-1.5-flash')
+                response = model_basic.generate_content(f"Analyse simplifiée de {target} (Mode secours sans recherche web).")
+                return "⚠️ *Note : Recherche Web indisponible.* \n\n" + response.text
             except:
-                return f"❌ Erreur critique persistante : {e}"
+                return f"❌ Erreur critique : {e}"
         
         return f"❌ Erreur technique : {e}"
 
