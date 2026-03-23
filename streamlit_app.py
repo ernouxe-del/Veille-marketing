@@ -1,41 +1,29 @@
 import streamlit as st
 import google.generativeai as genai
 
-# Look de l'appli
-st.set_page_config(page_title="Spy Marketing 5five", page_icon="🚀")
-st.title("🕵️‍♂️ Agent de Veille : 5five & Co")
+# Configuration de l'interface
+st.set_page_config(page_title="Agent Veille 5five", page_icon="🕵️‍♂️")
+st.title("🕵️‍♂️ Agent de Veille Marketing")
 
-# On récupère la clé en toute sécurité
-api_key = st.secrets["GOOGLE_API_KEY"]
-genai.configure(api_key=api_key)
+# Récupération de la clé API
+if "GOOGLE_API_KEY" not in st.secrets:
+    st.error("La clé API est manquante dans les Secrets Streamlit !")
+    st.stop()
 
-# Configuration de l'agent avec les instructions que tu as reçues de AI Studio
-instructions = """Tu es un Agent d'Intelligence Stratégique. 
-Ta mission est d'analyser les sites web (comme 5five.com) et le web en temps réel.
-Tu dois fournir : 
-1. Les faits marquants (promos, changements de site).
-2. Le Top 5 des produits avec Prix, Design et Stratégie Marketing.
-3. Une analyse de l'esthétique visuelle.
-Sois précis, professionnel et détecte le 'pourquoi' du succès des produits."""
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro", # Version stable et puissante pour la veille
-    system_instruction=instructions
-)
+# Modèle sans options complexes pour tester la connexion
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Interface pour ton équipe
-st.sidebar.header("Paramètres")
-target_url = st.sidebar.text_input("URL à surveiller", value="https://www.5five.com/fr/")
+# Champ de saisie
+prompt = st.text_area("Que voulez-vous demander à l'agent ?", "Fais-moi un résumé des forces de la marque 5five.")
 
-if st.button("Lancer la veille stratégique"):
-    with st.spinner("L'agent fouille le web..."):
-        # Le "tools=['google_search']" est ce qui permet à l'IA de sortir sur internet
-        response = model.generate_content(
-            f"Fais ton rapport de veille complet sur {target_url} à la date d'aujourd'hui.",
-            tools=[{'google_search_retrieval': {}}] 
-        )
-        st.markdown("### 📊 Rapport de Veille Stratégique")
-        st.write(response.text)
-        st.success("Veille terminée avec succès.")
-
-st.info("Ce rapport sert de base comparative pour vos décisions marketing.")
+if st.button("Lancer l'analyse"):
+    with st.spinner("L'IA réfléchit..."):
+        try:
+            response = model.generate_content(prompt)
+            st.markdown("### 📝 Résultat de l'analyse")
+            st.write(response.text)
+            st.balloons() # Enfin les ballons !
+        except Exception as e:
+            st.error(f"Une erreur est survenue : {e}")
