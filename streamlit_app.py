@@ -74,20 +74,21 @@ def executer_analyse(target, focus):
     - NE RIEN INVENTER : Si une info manque (ex: pas de Click & Collect ou de RSE visible), ne mentionne PAS ces sections.
     - Toujours citer les liens sources exacts sous chaque section."""
 
-   try:
+ # ... (début de ton prompt)
+    CONSTRAINTES STRICTES :
+    - NE RIEN INVENTER : Si une info manque (ex: pas de Click & Collect ou de RSE visible), ne mentionne PAS ces sections.
+    - Toujours citer les liens sources exacts sous chaque section."""
+
+    try:
         model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
         prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
         
-        # --- ANCIEN CODE ---
-        # response = model.generate_content(prompt)
-        
-        # --- NOUVEAU CODE AVEC GOOGLE SEARCH ---
         response = model.generate_content(
             prompt,
-            tools='google_search_retrieval' # C'est cette ligne qui active la recherche !
+            tools='google_search_retrieval'
         )
-        
         return response.text
+        
     except Exception as e:
         return f"Erreur technique : {e}"
 
