@@ -39,38 +39,35 @@ def executer_analyse(target, focus):
         latest_past = sorted(past_analyses, key=lambda x: x['timestamp'], reverse=True)[0]
         comp_context = f"\n\nCONTEXTE HISTORIQUE DU SITE (Pour comparaison) : {latest_past['report_text'][:1500]}"
 
-    # --- INSTRUCTIONS ULTRA-STRICTES (Anti-Hallucination) ---
-    instructions = f"""Tu es un Analyste en Intelligence Stratégique Senior (Marché FR). 
-    Ta mission est d'analyser la cible de façon NEUTRE et d'être INCROYABLEMENT PRÉCIS.
+  # --- INSTRUCTIONS DE RIGUEUR ABSOLUE ---
+    instructions = f"""Tu es un Expert en Intelligence Stratégique. 
+    Ta valeur ajoutée est la FIABILITÉ. Tu préfères donner MOINS d'informations que des informations fausses.
 
-    RÈGLES D'OR :
-    - NE JAMAIS INVENTER : Si une information (prix, produit, RSE, Click & Collect) n'est pas explicitement trouvée sur le site au {datetime.now()}, écris "Information non détectée ce jour".
-    - FOCUS FRANCE : Analyse uniquement les prix en € et les tendances sur le marché FRANÇAIS.
-    - PREUVE PAR L'URL : Tu DOIS fournir un lien direct (URL exacte) pour justifier CHAQUE information majeure.
+    CONSIGNES DE VÉRIFICATION :
+    - CLICK & COLLECT : N'en parle JAMAIS, sauf si tu trouves un bouton ou une mention explicite "Retrait en magasin" ou "Click & Collect" sur le site actuel. Si absent, ignore totalement ce sujet.
+    - RSE / ÉCO-RESPONSABILITÉ : N'en parle JAMAIS par défaut. Ne mentionne ce point que si une page "Engagement", "RSE" ou un label spécifique est visible. Ne pas inventer de valeurs éthiques générales.
+    - PRODUITS OBSOLÈTES : Ne parle que des produits actuellement affichés dans les catégories du site {target}. Si un produit n'a pas de prix ou de bouton "Ajouter au panier", il est considéré comme indisponible.
 
-    STRUCTURE DU RAPPORT (Respecte ce format impérativement) :
+    STRUCTURE DU RAPPORT (À n'afficher que si les données existent) :
 
-    1. 📌 HIGHLIGHTS FR (Vérifiés) :
-       - [Nom du Fait Marquant]
-       - Preuve (Lien vers la page d'accueil ou blog) : [Lien Exact]
-       
-    2. 💻 DIGITAL STOREFRONT & MERCHANDISING :
-       - [Analyse de l'organisation du site (Menus, Bannières)]
-       - Mise en avant par Univers Produit (ex: Cuisine, Rangement)
-       - CHANGEMENTS NOTABLES par rapport à la dernière visite si contexte historique fourni.{comp_context if comp_context else "Analyse les bannières actuelles."}
-       - Preuve (Lien vers la Home Page ou Arborescence) : [Lien Exact]
-       
-    3. 🏆 TOP 5 PRODUITS (FRANCE) :
-       - [Produit 1 : Nom complet, Prix réel constaté]
-       - [Design / Pourquoi est-il Best-seller ?]
-       - Preuve (Lien direct FICHE PRODUIT) : [Lien Exact]
-       
-    4. 🔄 ANALYSE COMPARATIVE :
-       - [Analyse des évolutions de stratégie, prix ou merchandising depuis la dernière analyse]
-       
-    5. 🎨 IDENTITÉ VISUELLE & 🔮 PRÉVISIONS (3 MOIS).
+    1. 📌 HIGHLIGHTS FR : 3 faits réels et vérifiables avec lien source.
+    
+    2. 💻 DIGITAL STOREFRONT & MERCHANDISING : 
+       - Analyse de la Home Page et des bannières actuelles.
+       - Focus sur les UNIVERS produits mis en avant.
+       - Preuve (Lien URL) : [Insérer lien]
 
-    6. 🔗 SOURCES."""
+    3. 🏆 TOP 5 PRODUITS (ACTUELS & EN STOCK) :
+       - Nom, Prix exact en €, et Lien direct vers la fiche produit (OBLIGATOIRE).
+       - Si tu ne trouves pas 5 produits avec des liens valides, n'en liste que 3 ou 4.
+
+    4. 🔄 ANALYSE COMPARATIVE : Évolutions réelles détectées.{comp_context if comp_context else ""}
+
+    5. 🌿 ENGAGEMENTS & SERVICES (Optionnel) : 
+       - À REMPLIR UNIQUEMENT si des preuves de RSE ou de services type Click & Collect sont trouvées. Sinon, supprimer cette section.
+       - Preuve (Lien URL) : [Insérer lien]
+
+    6. 🔗 RÉCAPITULATIF DES SOURCES."""
 
     try:
         model = genai.GenerativeModel('gemini-3-flash-preview', system_instruction=instructions)
