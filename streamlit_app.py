@@ -14,7 +14,7 @@ if not os.path.exists(DB_DIR): os.makedirs(DB_DIR)
 db = TinyDB(os.path.join(DB_DIR, 'historique_veille.json'))
 Analysis = Query()
 
-# --- 3. BIBLIOTHÈQUE DE CERVEAUX (Ton prompt AI Studio intégré ici) ---
+# --- 3. BIBLIOTHÈQUE DE CERVEAUX ---
 CERVEAUX = {
     "🧠 Agent Standard (AI Studio)": """Role: You are a Senior Strategic Intelligence Agent specialized in competitive monitoring. Your goal is to detect every subtle change in the strategy of {target}.
 
@@ -46,19 +46,18 @@ Output Rules:
 - End with a "Strategic Prediction" (what this means for their next 3 months).
 
 Constraint: If data is missing, mention it clearly and suggest a specific search query. No Click & Collect or CSR mention if not found.""",
-
-    "💰 Expert Pricing": "Focus exclusif sur les prix et les marges de {target}.",
-    "🎨 Expert Design": "Focus exclusif sur la DA et le style visuel de {target}."
+    "💰 Expert Pricing": "Focus exclusif sur les prix de {target}.",
+    "🎨 Expert Design": "Focus exclusif sur la DA de {target}."
 }
 
-# --- 4. FONCTION D'ANALYSE (ACTIVATION RECHERCHE GOOGLE) ---
+# --- 4. FONCTION D'ANALYSE ---
 def executer_analyse(target, focus, instructions_cerveau):
     if "GOOGLE_API_KEY" not in st.secrets:
         st.error("Clé API manquante.")
         st.stop()
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Outil de recherche indispensable pour la précision "AI Studio"
+    # Activation de la recherche Google (Google Search Retrieval)
     tools_config = [{"google_search_retrieval": {}}]
     
     try:
@@ -67,30 +66,39 @@ def executer_analyse(target, focus, instructions_cerveau):
             system_instruction=instructions_cerveau.format(target=target),
             tools=tools_config
         )
-        
-        prompt = f"Réalise l'analyse stratégique de {target}. Focus : {focus}. Utilise la recherche Google pour les données du jour."
+        prompt = f"Réalise l'analyse stratégique de {target}. Focus : {focus}. Date: {datetime.now().strftime('%d/%m/%Y')}"
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         if "429" in str(e): return "⏳ Quota dépassé. Attends 1 minute."
         return f"Erreur technique : {e}"
 
-# --- 5. SIDEBAR ---
+# --- 5. SIDEBAR (GESTION HISTORIQUE & CERVEAU) ---
 with st.sidebar:
-    st.title("🕵️‍♂️ Configuration Agent")
+    st.title("🕵️‍♂️ Configuration")
+    
+    # Choix du cerveau
     choix_nom = st.selectbox("Sélectionne le cerveau :", list(CERVEAUX.keys()))
-    instructions_custom = st.text_area("Instructions actives :", value=CERVEAUX[choix_nom], height=400)
+    instructions_custom = st.text_area("Instructions actives :", value=CERVEAUX[choix_nom], height=300)
 
+    st.markdown("---")
     if st.button("➕ Nouvelle Analyse", type="primary"):
         st.session_state['selected_target'] = None
         st.rerun()
     
-    st.markdown("---")
-    st.markdown("### 🏢 Historique")
-    targets = sorted(list(set([ana['target_name'] for ana in db.all()])))
-    for t in targets:
-        if st.button(f"🏢 {t}", key=f"t_{t}"):
-            st.session_state['selected_target'] = t
+    st.markdown("### 🏢 Marques suivies")
+    all_data = db.all()
+    unique_targets = sorted(list(set([ana['target_name'] for ana in all_data])))
+    
+    for t_name in unique_targets:
+        cols = st.columns([0.7, 0.3])
+        if cols[0].button(f"🏢 {t_name}", key=f"btn_{t_name}"):
+            st.session_state['selected_target'] = t_name
+            st.rerun()
+        # BOUTON SUPPRIMER RETABLIT
+        if cols[1].button("🗑️", key=f"del_{t_name}"):
+            db.remove(Analysis.target_name == t_name)
+            st.session_state['selected_target'] = None
             st.rerun()
 
 # --- 6. CORPS PRINCIPAL ---
@@ -102,14 +110,51 @@ if selected_target is None:
     target_input = col1.text_input("URL cible :", "https://www.5five.com/fr/")
     focus_input = col2.selectbox("Focus :", ["Global", "Nouveautés", "Prix"])
     
-    if st.button("Lancer l'analyse"):
+    if st.button("🚀 Lancer l'analyse"):
         with st.spinner("Recherche en direct et analyse..."):
             report = executer_analyse(target_input, focus_input, instructions_custom)
             t_name = target_input.split("//")[-1].split("/")[0] if "http" in target_input else target_input
-            db.insert({'target_name': t_name, 'timestamp': datetime.now().timestamp(), 'report_text': report})
+            # Sauvegarde SANS écraser (Nouvel ID unique)
+            db.insert({
+                'id': str(uuid.uuid4()),
+                'target': target_input,
+                'target_name': t_name,
+                'timestamp': datetime.now().timestamp(),
+                'report_text': report,
+                'focus': focus_input
+            })
             st.session_state['selected_target'] = t_name
             st.rerun()
 else:
+    # Récupération de toutes les analyses pour cette marque
     reports = sorted(db.search(Analysis.target_name == selected_target), key=lambda x: x['timestamp'], reverse=True)
-    st.header(f"Rapport : {selected_target}")
+    
+    col_title, col_refresh = st.columns([0.7, 0.3])
+    col_title.header(f"Rapports : {selected_target}")
+    
+    # BOUTON RAFRAICHIR RETABLIT (Crée une nouvelle entrée en base)
+    if col_refresh.button("🔄 Actualiser (Nouvelle Archive)"):
+        with st.spinner("Mise à jour du rapport..."):
+            new_report = executer_analyse(reports[0]['target'], reports[0]['focus'], instructions_custom)
+            db.insert({
+                'id': str(uuid.uuid4()),
+                'target': reports[0]['target'],
+                'target_name': selected_target,
+                'timestamp': datetime.now().timestamp(),
+                'report_text': new_report,
+                'focus': reports[0]['focus']
+            })
+            st.rerun()
+
+    st.markdown("---")
+    st.subheader("📍 Dernière version")
     st.markdown(reports[0]['report_text'])
+    
+    # SYSTÈME D'ARCHIVES POUR NE PAS PERDRE LES JOURS PRÉCÉDENTS
+    if len(reports) > 1:
+        st.markdown("---")
+        st.subheader("📜 Historique des analyses")
+        for old in reports[1:]:
+            date_str = datetime.fromtimestamp(old['timestamp']).strftime('%d/%m/%Y à %H:%M')
+            with st.expander(f"Analyse du {date_str}"):
+                st.markdown(old['report_text'])
