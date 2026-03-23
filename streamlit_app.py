@@ -1,29 +1,34 @@
 import streamlit as st
 import google.generativeai as genai
 
-# Configuration de l'interface
-st.set_page_config(page_title="Agent Veille 5five", page_icon="🕵️‍♂️")
-st.title("🕵️‍♂️ Agent de Veille Marketing")
+# Look de l'appli
+st.set_page_config(page_title="Agent Veille Gemini 3", page_icon="🕵️‍♂️")
+st.title("🕵️‍♂️ Agent de Veille : Spécial 5five")
 
-# Récupération de la clé API
+# Connexion sécurisée
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("La clé API est manquante dans les Secrets Streamlit !")
+    st.error("Clé API manquante dans les Secrets !")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# Modèle sans options complexes pour tester la connexion
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Utilisation de la version Gemini 3 (la plus récente en 2026)
+# Si 'gemini-3-flash' ne passe pas, on testera 'gemini-1.5-pro'
+try:
+    model = genai.GenerativeModel('gemini-3-flash')
+except:
+    model = genai.GenerativeModel('gemini-1.5-pro')
 
-# Champ de saisie
-prompt = st.text_area("Que voulez-vous demander à l'agent ?", "Fais-moi un résumé des forces de la marque 5five.")
+# Interface
+target = st.text_input("Cible de veille :", "https://www.5five.com/fr/")
 
 if st.button("Lancer l'analyse"):
-    with st.spinner("L'IA réfléchit..."):
+    with st.spinner("Analyse en cours avec Gemini 3..."):
         try:
-            response = model.generate_content(prompt)
-            st.markdown("### 📝 Résultat de l'analyse")
+            # On demande une analyse simple pour valider la connexion
+            response = model.generate_content(f"Fais un court résumé des points forts du site {target}")
+            st.markdown("### 📊 Rapport Flash")
             st.write(response.text)
-            st.balloons() # Enfin les ballons !
+            st.balloons()
         except Exception as e:
-            st.error(f"Une erreur est survenue : {e}")
+            st.error(f"Erreur de connexion : {e}")
