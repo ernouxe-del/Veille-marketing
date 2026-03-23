@@ -25,19 +25,13 @@ def executer_analyse(target, focus, system_prompt):
     # 1. On utilise le nom d'outil qui fonctionne sur la version 2.0
     tools_config = [{"google_search_retrieval": {}}]
     
-    try:
-        # 2. Changement de modèle pour gemini-2.0-flash (celui de ton test Studio)
-        # On retire le '-latest' qui peut causer des 404 selon les régions
-        model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash',
-            system_instruction=system_prompt,
-            tools=tools_config
-        )
-        
-        prompt = f"Analyse stratégique de {target}. Focus : {focus}. Utilise Google Search pour citer tes preuves."
-        
-        response = model.generate_content(prompt)
-        return response.text
+   try:
+    response = model.generate_content(prompt)
+    return response.text
+except Exception as e:
+    if "429" in str(e):
+        return "⏳ **Pause forcée par Google (Quota)** : Patiente 60 secondes. L'IA a besoin de souffler pour rester gratuite !"
+    return f"Erreur : {e}"
 
     except Exception as e:
         # 3. Système de secours intelligent (Fallback)
