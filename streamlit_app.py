@@ -75,14 +75,13 @@ def executer_analyse(target, focus):
     - Toujours citer les liens sources exacts sous chaque section."""
 
     try:
-        # CHANGEMENT ICI : Utilisation de gemini-2.5-flash pour contourner la limite de quota
         model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=instructions)
         prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
         
-        # Appel à l'API avec l'outil de recherche Google activé
+        # CHANGEMENT ICI : Le nouveau nom de l'outil de recherche
         response = model.generate_content(
             prompt,
-            tools='google_search_retrieval'
+            tools='google_search'
         )
         return response.text
         
