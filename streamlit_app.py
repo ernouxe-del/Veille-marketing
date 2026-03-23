@@ -78,10 +78,14 @@ def executer_analyse(target, focus):
         model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=instructions)
         prompt = f"Effectue un rapport de veille stratégique complet sur {target}. Focus : {focus}."
         
-        # CHANGEMENT ICI : Le format dictionnaire exigé par la nouvelle version
+        # CHANGEMENT ICI : Utilisation de l'objet natif Protobuf pour contourner le bug
+        outil_recherche = genai.protos.Tool(
+            google_search=genai.protos.GoogleSearch()
+        )
+        
         response = model.generate_content(
             prompt,
-            tools=[{"google_search": {}}]
+            tools=[outil_recherche]
         )
         return response.text
         
