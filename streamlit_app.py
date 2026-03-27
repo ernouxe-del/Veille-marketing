@@ -28,27 +28,22 @@ Analysis = Query()
 def decouvrir_et_scanner(base_url):
     """L'agent explore la home page pour trouver les liens vers les nouveautés et les tops."""
     try:
-        # 1. Lecture de la Home Page (On augmente le timeout à 20s pour la première page)
-        st.info(f"🔎 Exploration de la structure de {base_url}...")
+        st.info(f"🔎 Exploration de la structure actuelle de {base_url}...")
         reader_url = f"https://r.jina.ai/{base_url}"
-        response = requests.get(reader_url, timeout=20)
+        response = requests.get(reader_url, timeout=25)
         home_text = response.text if response.status_code == 200 else ""
         
-        # 2. Recherche de liens stratégiques (Nouveautés, Best-sellers, Promo)
         mots_cles = ["nouveau", "new", "ventes", "best", "top", "promo", "soldes", "collection"]
         liens_trouves = re.findall(r'\(https?://[^\s\)]+\)', home_text)
         liens_propres = [l.strip('()') for l in liens_trouves]
         
         urls_a_visiter = [base_url]
-        
-        # Filtrage des liens pertinents
         domain = base_url.split('//')[-1].split('/')[0]
         for link in liens_propres:
             if any(mot in link.lower() for mot in mots_cles) and domain in link:
                 if link not in urls_a_visiter:
                     urls_a_visiter.append(link)
         
-        # LIMITE : On ne prend que les 3 pages les plus importantes pour éviter le timeout
         urls_a_visiter = list(dict.fromkeys(urls_a_visiter))[:3]
         
         scan_global = ""
@@ -56,20 +51,18 @@ def decouvrir_et_scanner(base_url):
             nom_page = url.split('/')[-1] or "Accueil"
             st.info(f"📄 Lecture approfondie : {nom_page}")
             try:
-                # AUGMENTATION DU TIMEOUT ICI (30 secondes par page)
                 res = requests.get(f"https://r.jina.ai/{url}", timeout=30)
                 if res.status_code == 200:
                     scan_global += f"\n\n--- DONNÉES DE LA PAGE : {url} ---\n"
                     scan_global += res.text[:8000]
             except:
-                st.warning(f"⚠️ Page {nom_page} trop longue à charger, passage à la suivante...")
                 continue
                 
         return scan_global
     except Exception as e:
         return f"Erreur lors de l'exploration : {e}"
 
-# --- 4. LE CERVEAU DE L'AGENT (IA) ---
+# --- 4. LE CERVEAU DE L'AGENT (IA Comparative) ---
 def executer_analyse(target, focus):
     if "GOOGLE_API_KEY" not in st.secrets:
         st.error("Clé API manquante dans les Secrets Streamlit.")
@@ -77,37 +70,48 @@ def executer_analyse(target, focus):
     
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Exploration réelle du site
-    donnees_brutes = decouvrir_et_scanner(target)
+    # 1. On récupère les données fraîches du site
+    donnees_futures = decouvrir_et_scanner(target)
 
-    if not donnees_brutes or len(donnees_brutes) < 100:
-        return "Désolé, je n'ai pas pu récupérer assez de données sur ce site (Timeout ou blocage). Réessaie dans quelques instants."
-
-    # Contexte historique
+    # 2. On récupère TOUT l'historique pour la comparaison
     past_analyses = db.search(Analysis.target == target)
-    comp_context = ""
+    comp_context = "C'est la première veille pour ce site."
     if past_analyses:
         latest = sorted(past_analyses, key=lambda x: x['timestamp'], reverse=True)[0]
-        comp_context = f"\n[HISTORIQUE] : Ta dernière analyse notait : {latest['report_text'][:500]}"
+        comp_context = f"VOICI LE RAPPORT PRÉCÉDENT (À COMPARER) :\n---\n{latest['report_text']}\n---"
 
-    prompt = f"""Tu es un Agent Senior en Intelligence Stratégique expert en E-commerce.
-    Tu as scanné plusieurs pages stratégiques du site {target}.
+    # 3. Prompt avec la structure exigée et le focus comparatif
+    prompt = f"""Tu es un Agent Senior en Intelligence Stratégique. 
+    Ta mission est d'analyser le site {target} et de détecter TOUTES les évolutions par rapport au rapport précédent.
     
-    DONNÉES SCANNEES :
+    VOICI LES DONNÉES DU SCAN ACTUEL :
     --- 
-    {donnees_brutes}
+    {donnees_futures}
     ---
+    
     {comp_context}
 
-    MISSION : Produire un rapport de veille concurrentielle "Sincérité Radicale". 
-    Je veux des noms de produits et des prix précis détectés dans le scan ci-dessus.
-    
-    FORMAT :
-    1. 🚀 NOUVEAUTÉS DÉTECTÉES (Noms et prix)
-    2. 🏆 TOP VENTES (Articles mis en avant)
-    3. 💰 ANALYSE PRIX & PROMOS
-    4. 🔮 TENDANCE GLOBALE & PRÉDICTION
-    """
+    TU DOIS RÉDIGER TON RAPPORT SELON CETTE STRUCTURE STRICTE :
+
+    1. 📢 ANALYSE GLOBALE & FAITS NOTABLES :
+       Analyse ce que le site met en avant aujourd'hui (Hero Banner, message principal, événement saisonnier).
+       Quels sont les faits marquants de cette visite ?
+
+    2. 🏗️ ARCHITECTURE & STRUCTURE DU SITE :
+       Analyse le menu et les catégories. 
+       COMPARAISON OBLIGATOIRE : Dis-moi précisément si la structure a changé par rapport au rapport précédent (nouveaux onglets, catégories supprimées ou renommées).
+
+    3. 🏷️ OFFRE PRODUITS, PRIX & PROMOTIONS :
+       Regroupe ici tout le concret :
+       - Liste des Nouveautés (New In) avec prix.
+       - Liste des Best-Sellers (Top ventes).
+       - Analyse des promotions actuelles.
+       COMPARAISON OBLIGATOIRE : Note les changements de prix ou les nouveaux produits par rapport à la dernière fois.
+
+    4. 🔮 TENDANCE GLOBALE & PRÉDICTION :
+       Quels styles dominent ? Quelle est ta prédiction stratégique pour les 3 prochains mois ?
+
+    CONSIGNE : Si tu ne vois aucun changement sur un point, écris "Structure inchangée". Sois factuel et cite des produits."""
 
     try:
         model = genai.GenerativeModel('gemini-2.5-flash') 
@@ -139,12 +143,13 @@ with st.sidebar:
 selected_target = st.session_state.get('selected_target')
 
 if selected_target is None:
-    st.header("Lancer un Agent de Veille Profonde")
-    target_input = st.text_input("URL de la marque :", "https://www.5five.com/fr/")
-    focus_input = st.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
+    st.header("Lancer un Agent de Veille Comparative")
+    col1, col2 = st.columns([1, 1])
+    target_input = col1.text_input("URL de la marque :", "https://www.5five.com/fr/")
+    focus_input = col2.selectbox("Focus :", ["Global", "Prix", "Design", "Innovation"])
     
-    if st.button("Lancer l'Agent Explorateur"):
-        with st.spinner("Analyse en cours (peut prendre 30-40 secondes)..."):
+    if st.button("Lancer l'Analyse"):
+        with st.spinner("L'agent explore et compare les données..."):
             report = executer_analyse(target_input, focus_input)
             t_name = target_input.split("//")[-1].split("/")[0] if "http" in target_input else target_input
             db.insert({
@@ -157,8 +162,8 @@ else:
     reports = sorted(db.search(Analysis.target_name == selected_target), key=lambda x: x['timestamp'], reverse=True)
     st.header(f"Rapport : {selected_target}")
     
-    if st.button("🔄 Actualiser (Deep Scan)"):
-        with st.spinner("Mise à jour stratégique..."):
+    if st.button("🔄 Actualiser & Comparer"):
+        with st.spinner("Scan profond et analyse des différences..."):
             new_report = executer_analyse(reports[0]['target'], reports[0]['focus'])
             db.insert({
                 'id': str(uuid.uuid4()), 'target': reports[0]['target'], 'target_name': selected_target,
